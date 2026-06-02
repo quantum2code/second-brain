@@ -12,9 +12,11 @@
   "dependencies": {
     "@second-brain/db": "workspace:*",
     "@second-brain/env": "workspace:*",
+    "@supabase/supabase-js": "^2.106.2",
     "cors": "^2.8.5",
     "dotenv": "catalog:",
     "express": "^5.1.0",
+    "jsonwebtoken": "^9.0.3",
     "zod": "catalog:"
   },
   "devDependencies": {
