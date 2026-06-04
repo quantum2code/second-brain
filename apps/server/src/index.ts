@@ -2,11 +2,13 @@ import { env } from "@second-brain/env/server";
 import cors from "cors";
 import express from "express";
 import { DiscordProvider } from "./lib/discord";
+import { GmailProvider } from "./lib/gmail";
 import { SlackProvider } from "./lib/slack";
 
 const app = express();
 const discordProvider = new DiscordProvider();
 const slackProvider = new SlackProvider();
+const gmailProvider = new GmailProvider();
 
 app.use(
   cors({
@@ -35,6 +37,7 @@ app.post("/slack/events", async (req, res) => {
 const shutdown = async () => {
 	await discordProvider.close();
 	await slackProvider.close();
+	await gmailProvider.close();
 	process.exit(0);
 };
 
@@ -47,4 +50,8 @@ app.listen(3000, () => {
 
 void discordProvider.start().catch((error) => {
 	console.error("Discord bot failed to start", error);
+});
+
+void gmailProvider.start().catch((error) => {
+	console.error("Gmail polling failed to start", error);
 });
