@@ -15,7 +15,9 @@
     "db:push": "pnpm --filter @second-brain/db db:push",
     "db:studio": "pnpm --filter @second-brain/db db:studio",
     "db:generate": "pnpm --filter @second-brain/db db:generate",
-    "db:migrate": "pnpm --filter @second-brain/db db:migrate"
+		"db:migrate": "pnpm --filter @second-brain/db db:migrate",
+		"arcade:start": "sudo docker run -d --name arcadedb -p 2480:2480 -p 2424:2424   -e JAVA_OPTS='-Darcadedb.server.rootPassword=playwithdata'   arcadedata/arcadedb:latest",
+		"arcade:stop": "sudo docker stop arcadedb"
   },
   "dependencies": {
     "@second-brain/env": "workspace:*",

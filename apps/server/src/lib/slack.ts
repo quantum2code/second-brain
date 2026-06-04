@@ -1,5 +1,5 @@
 import type { Request } from "express";
-import { Provider } from "./provider";
+import { Provider, type ProviderCapabilities, type WebhookProvider } from "./provider";
 import { EVENT_QUEUE_NAME, Publisher } from "./publisher";
 
 export type SlackMessageJob = {
@@ -25,7 +25,12 @@ const mapMessage = (
 	).toISOString(),
 });
 
-export class SlackProvider extends Provider {
+export class SlackProvider extends Provider implements WebhookProvider {
+	readonly capabilities: ProviderCapabilities = {
+		inbound: ["webhook"],
+		write: [],
+	};
+
 	constructor(private readonly publisher = new Publisher<SlackMessageJob>(EVENT_QUEUE_NAME)) {
 		super();
 	}
