@@ -7,13 +7,16 @@
     "check-types": "tsc -b",
     "compile": "bun build --compile --minify --sourcemap --bytecode ./src/index.ts --outfile server",
     "dev": "tsx watch src/index.ts",
+    "dev:worker": "tsx watch src/workers/discord.ts",
     "start": "node dist/index.mjs"
   },
   "dependencies": {
     "@second-brain/db": "workspace:*",
     "@second-brain/env": "workspace:*",
     "@supabase/supabase-js": "^2.106.2",
+    "bullmq": "^5.77.7",
     "cors": "^2.8.5",
+    "discord.js": "^14.26.4",
     "dotenv": "catalog:",
     "express": "^5.1.0",
     "jsonwebtoken": "^9.0.3",
