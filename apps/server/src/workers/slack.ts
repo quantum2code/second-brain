@@ -21,7 +21,7 @@ export const worker = new Worker<EventMessageJob[]>(
 );
 
 worker.on("failed", (job, error) => {
-	console.error("[discord] job failed", job?.id, error);
+	console.error("[slack] job failed", job?.id, error);
 });
 
-console.log("[discord] worker started");
+console.log("[slack] worker started");

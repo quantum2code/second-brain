@@ -1,7 +1,7 @@
 import { env } from "@second-brain/env/server";
 import { Client, GatewayIntentBits, type Message } from "discord.js";
 import { Provider } from "./provider";
-import { Publisher } from "./publisher";
+import { EVENT_QUEUE_NAME, Publisher } from "./publisher";
 
 export type DiscordMessageJob = {
 	guildId: string;
@@ -35,11 +35,11 @@ export class DiscordProvider extends Provider {
 
 	private readonly guildIds = parseGuildIds(env.DISCORD_GUILD_IDS);
 
-	constructor(private readonly publisher = new Publisher<DiscordMessageJob>()) {
+	constructor(private readonly publisher = new Publisher<DiscordMessageJob>(EVENT_QUEUE_NAME)) {
 		super();
 	}
 
-	override async start(): Promise<void> {
+	async start(): Promise<void> {
 		const token = env.DISCORD_BOT_TOKEN;
 
 		if (!token) {

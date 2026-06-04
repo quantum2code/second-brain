@@ -1,13 +1,15 @@
 import { Queue, type JobsOptions } from "bullmq";
 import { env } from "@second-brain/env/server";
 
+export const EVENT_QUEUE_NAME = "events";
+
 export class Publisher<TPayload> {
 	private readonly queue: Queue;
 	private readonly batchWindowMs = 2000;
 	private buffer: TPayload[] = [];
 	private timer: ReturnType<typeof setTimeout> | undefined;
 
-	constructor(queueName = "discord") {
+	constructor(queueName = EVENT_QUEUE_NAME) {
 		this.queue = new Queue(queueName, {
 			connection: {
 				url: env.REDIS_URL,

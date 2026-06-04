@@ -2,9 +2,11 @@ import { env } from "@second-brain/env/server";
 import cors from "cors";
 import express from "express";
 import { DiscordProvider } from "./lib/discord";
+import { SlackProvider } from "./lib/slack";
 
 const app = express();
 const discordProvider = new DiscordProvider();
+const slackProvider = new SlackProvider();
 
 app.use(
   cors({
@@ -20,8 +22,19 @@ app.get("/", (_req, res) => {
   res.status(200).send("OK");
 });
 
+app.post("/slack/events", async (req, res) => {
+  const result = await slackProvider.handleWebhook(req);
+
+  if (typeof result === "string") {
+    return res.send(result);
+  }
+
+  res.sendStatus(200);
+});
+
 const shutdown = async () => {
 	await discordProvider.close();
+	await slackProvider.close();
 	process.exit(0);
 };
 
