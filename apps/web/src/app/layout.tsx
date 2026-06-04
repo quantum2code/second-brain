@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 
 import "../index.css";
-import Header from "@/components/header";
 import Providers from "@/components/providers";
+import PageLoader from "@/components/page-loader";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -16,8 +16,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "second-brain",
-  description: "second-brain",
+  title: "Second Brain — Extended Intelligence",
+  description: "Your unified data ecosystem and Extended Intelligence dashboard.",
 };
 
 export default function RootLayout({
@@ -29,10 +29,8 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <Providers>
-          <div className="grid grid-rows-[auto_1fr] h-svh">
-            <Header />
-            {children}
-          </div>
+          <PageLoader />
+          {children}
         </Providers>
       </body>
     </html>
