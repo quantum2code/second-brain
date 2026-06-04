@@ -1,1 +1,132 @@
 @import "@second-brain/ui/globals.css";
+
+/* ════════════════════════════════════════════════════════════
+   WATERFALL & REVEAL ANIMATION SYSTEM
+   ════════════════════════════════════════════════════════════ */
+
+/* ── Entrance animations ── */
+@keyframes waterfallIn {
+  from {
+    opacity: 0;
+    transform: translateY(-20px) scale(0.97);
+    filter: blur(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0px);
+  }
+}
+
+@keyframes sidebarIn {
+  from { opacity: 0; transform: translateX(-16px); filter: blur(3px); }
+  to   { opacity: 1; transform: translateX(0);     filter: blur(0);   }
+}
+
+@keyframes headerIn {
+  from { opacity: 0; transform: translateY(-12px); filter: blur(2px); }
+  to   { opacity: 1; transform: translateY(0);     filter: blur(0);   }
+}
+
+@keyframes contentIn {
+  from { opacity: 0; transform: translateY(18px); filter: blur(3px); }
+  to   { opacity: 1; transform: translateY(0);    filter: blur(0);   }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* ── Loader specific ── */
+@keyframes logoPulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(168,85,247,0), 0 0 30px rgba(168,85,247,0.15);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 0 12px rgba(168,85,247,0.05), 0 0 60px rgba(168,85,247,0.35);
+    transform: scale(1.04);
+  }
+}
+
+@keyframes orbitDot {
+  from { transform: rotate(0deg) translateX(56px) rotate(0deg); }
+  to   { transform: rotate(360deg) translateX(56px) rotate(-360deg); }
+}
+@keyframes orbitDot2 {
+  from { transform: rotate(120deg) translateX(42px) rotate(-120deg); }
+  to   { transform: rotate(480deg) translateX(42px) rotate(-480deg); }
+}
+@keyframes orbitDot3 {
+  from { transform: rotate(240deg) translateX(70px) rotate(-240deg); }
+  to   { transform: rotate(600deg) translateX(70px) rotate(-600deg); }
+}
+
+@keyframes floatA {
+  0%, 100% { transform: translate(0, 0) scale(1);    opacity: 0.4; }
+  33%      { transform: translate(14px, -12px) scale(1.1); opacity: 0.6; }
+  66%      { transform: translate(-9px, 6px) scale(0.95); opacity: 0.35; }
+}
+@keyframes floatB {
+  0%, 100% { transform: translate(0, 0);     opacity: 0.3; }
+  50%      { transform: translate(-16px, 13px); opacity: 0.5; }
+}
+@keyframes floatC {
+  0%, 100% { transform: translate(0, 0);           opacity: 0.45; }
+  40%      { transform: translate(12px, -16px);    opacity: 0.7;  }
+  80%      { transform: translate(-7px, 9px);      opacity: 0.3;  }
+}
+
+@keyframes connectorPulse {
+  0%, 100% { opacity: 0.05; }
+  50%      { opacity: 0.15; }
+}
+
+@keyframes progressGlow {
+  0%, 100% { box-shadow: 0 0 6px rgba(168,85,247,0.4); }
+  50%      { box-shadow: 0 0 18px rgba(168,85,247,0.8), 0 0 30px rgba(168,85,247,0.3); }
+}
+
+@keyframes textBlink {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0; }
+}
+
+/* ── Scroll reveal ── */
+@keyframes revealUp {
+  from { opacity: 0; transform: translateY(28px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0)    scale(1); }
+}
+
+@keyframes revealLeft {
+  from { opacity: 0; transform: translateX(20px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+/* ════ UTILITY CLASSES ════ */
+
+.waterfall   { animation: waterfallIn 0.6s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.sidebar-in  { animation: sidebarIn  0.5s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.header-in   { animation: headerIn   0.45s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.content-in  { animation: contentIn  0.55s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.fade-in     { animation: fadeIn     0.5s ease both; }
+
+/* Scroll reveal: initial state */
+.reveal {
+  opacity: 0;
+  transform: translateY(24px);
+  transition: opacity 0.6s cubic-bezier(0.22, 1, 0.36, 1),
+              transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.reveal-left {
+  opacity: 0;
+  transform: translateX(20px);
+  transition: opacity 0.5s cubic-bezier(0.22, 1, 0.36, 1),
+              transform 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.reveal.is-visible,
+.reveal-left.is-visible {
+  opacity: 1;
+  transform: translate(0, 0);
+}
