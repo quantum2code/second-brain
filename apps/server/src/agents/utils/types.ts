@@ -17,6 +17,19 @@ export type ExistingEntityMatch = {
 export type EnrichmentCandidate = {
   incomingEntity: ExtractedEntity;
   incomingEmbedding: number[];
-  /** All stored entities of the same kind with similarity ≥ SIMILARITY_THRESHOLD. */
+  /** All stored entities with similarity ≥ SIMILARITY_THRESHOLD. */
   matches: ExistingEntityMatch[];
+};
+
+/**
+ * An existing entity already stored in the graph that belongs to the
+ * matched Topic. Passed to planNode so the LLM can decide whether
+ * incoming temporal updates should propagate to these stale entities.
+ */
+export type TopicContextEntity = {
+  name: string;
+  kind: string;
+  scheduledAt?: string;
+  rawTemporal?: string;
+  todoDescription?: string;
 };

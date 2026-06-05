@@ -6,7 +6,7 @@ import {
   type ExtractedEntity,
   type UpdatePlan,
 } from "./utils/schema";
-import type { EnrichmentCandidate, ExistingEntityMatch } from "./utils/types";
+import type { EnrichmentCandidate, ExistingEntityMatch, TopicContextEntity } from "./utils/types";
 export type { EnrichmentCandidate, ExistingEntityMatch } from "./utils/types";
 import {
   cosineSimilarity,
@@ -27,7 +27,13 @@ type State = {
   entityEmbeddings: Record<string, number[]>;
   /** Entities that have ≥2 similar matches in the graph — need LLM judgment. */
   enrichmentCandidates: EnrichmentCandidate[];
-  /** LLM-generated update plan; null when enrichmentCandidates is empty. */
+  /**
+   * Existing child entities of the matched Topic fetched from the graph.
+   * Populated by searchNode so planNode can propagate temporal updates
+   * (e.g. postponements) to already-stored Events and Todos.
+   */
+  topicRelatedEntities: TopicContextEntity[];
+  /** LLM-generated update plan; null when neither enrichment candidates nor topic context exist. */
   updatePlan: UpdatePlan | null;
   createdEdges: CreatedEdge[];
   persisted: boolean;
@@ -63,27 +69,32 @@ async function findEntity(name: string): Promise<boolean> {
   return toRows(result).length > 0;
 }
 
+type StoredEntityRow = {
+  name: string;
+  embedding: string;
+  kind: string;
+  firstSeenAt?: string;
+  scheduledAt?: string;
+  rawTemporal?: string;
+};
+
 /**
- * Query all stored entities of a given kind that have an embedding.
- * Returns rows with enough data for similarity scoring and plan context.
+ * Query stored entities that have an embedding.
+ * When `kind` is provided the query is filtered to that kind; omit it to
+ * fetch ALL entities — used for cross-kind similarity dedup.
  */
-async function queryStoredEntities(kind: string): Promise<
-  Array<{
-    name: string;
-    embedding: string;
-    kind: string;
-    firstSeenAt?: string;
-    scheduledAt?: string;
-    rawTemporal?: string;
-  }>
-> {
+async function queryStoredEntities(kind?: string): Promise<StoredEntityRow[]> {
+  const whereClause = kind
+    ? `WHERE kind = ${sqlLiteral(kind)} AND embedding IS NOT NULL`
+    : `WHERE embedding IS NOT NULL`;
+
   const result = await arcadeDb.query(
     `SELECT name, embedding, kind, firstSeenAt, scheduledAt, rawTemporal
      FROM Entity
-     WHERE kind = ${sqlLiteral(kind)} AND embedding IS NOT NULL`,
+     ${whereClause}`,
   );
 
-  return toRows(result) as ReturnType<typeof queryStoredEntities> extends Promise<infer T> ? T : never;
+  return toRows(result) as StoredEntityRow[];
 }
 
 /**
@@ -91,7 +102,7 @@ async function queryStoredEntities(kind: string): Promise<
  * SIMILARITY_THRESHOLD. Used by upsertEntity for dedup.
  */
 function findBestMatch(
-  rows: Awaited<ReturnType<typeof queryStoredEntities>>,
+  rows: StoredEntityRow[],
   queryEmbedding: number[],
 ): string | null {
   let bestName: string | null = null;
@@ -130,7 +141,8 @@ async function upsertEntity(
   const embedding = precomputedEmbedding ?? await generateEmbedding(`${entity.kind}: ${name}`);
 
   if (embedding) {
-    const rows = await queryStoredEntities(entity.kind);
+    // Search across ALL kinds — prevents cross-kind duplicates
+    const rows = await queryStoredEntities();
     const existingName = findBestMatch(rows, embedding);
 
     if (existingName) {
@@ -139,9 +151,10 @@ async function upsertEntity(
       );
 
       const propagated = [
-        entity.scheduledAt      ? `scheduledAt = ${sqlLiteral(entity.scheduledAt)}`         : "",
-        entity.rawTemporal      ? `rawTemporal = ${sqlLiteral(entity.rawTemporal)}`         : "",
-        entity.todoDescription  ? `todoDescription = ${sqlLiteral(entity.todoDescription)}` : "",
+        entity.topic           ? `topic = ${sqlLiteral(entity.topic)}`                       : "",
+        entity.scheduledAt     ? `scheduledAt = ${sqlLiteral(entity.scheduledAt)}`           : "",
+        entity.rawTemporal     ? `rawTemporal = ${sqlLiteral(entity.rawTemporal)}`           : "",
+        entity.todoDescription ? `todoDescription = ${sqlLiteral(entity.todoDescription)}`   : "",
       ]
         .filter(Boolean)
         .join(", ");
@@ -158,10 +171,11 @@ async function upsertEntity(
 
   // --- No match — create or update the entity ---
   const extraFields = [
-    entity.scheduledAt     ? `, scheduledAt = ${sqlLiteral(entity.scheduledAt)}`           : "",
-    entity.rawTemporal     ? `, rawTemporal = ${sqlLiteral(entity.rawTemporal)}`           : "",
-    entity.todoDescription ? `, todoDescription = ${sqlLiteral(entity.todoDescription)}`   : "",
-    embedding              ? `, embedding = ${sqlLiteral(JSON.stringify(embedding))}`      : "",
+    entity.topic           ? `, topic = ${sqlLiteral(entity.topic)}`                         : "",
+    entity.scheduledAt     ? `, scheduledAt = ${sqlLiteral(entity.scheduledAt)}`             : "",
+    entity.rawTemporal     ? `, rawTemporal = ${sqlLiteral(entity.rawTemporal)}`             : "",
+    entity.todoDescription ? `, todoDescription = ${sqlLiteral(entity.todoDescription)}`     : "",
+    embedding              ? `, embedding = ${sqlLiteral(JSON.stringify(embedding))}`        : "",
   ].join("");
 
   await arcadeDb.command(
@@ -233,9 +247,9 @@ async function embedNode(state: Pick<State, "entities">) {
 }
 
 /**
- * For each entity with a pre-computed embedding, query ArcadeDB for similar
- * stored entities of the same kind. Entities with ≥2 matches above the
- * threshold are flagged as enrichment candidates for planNode.
+ * For each entity with a pre-computed embedding, compare against ALL stored
+ * entities (regardless of kind). Entities with ≥2 matches above the threshold
+ * are flagged as enrichment candidates for planNode.
  *
  * A single match is fine (upsertEntity handles dedup); 2+ means genuine
  * ambiguity that requires LLM judgment.
@@ -245,8 +259,8 @@ async function searchNode(
 ) {
   const enrichmentCandidates: EnrichmentCandidate[] = [];
 
-  // Cache per-kind queries so we don't re-fetch the same kind repeatedly
-  const kindCache = new Map<string, Awaited<ReturnType<typeof queryStoredEntities>>>();
+  // Fetch ALL stored entities once — cross-kind dedup
+  const allStoredRows = await queryStoredEntities();
 
   for (const entity of state.entities) {
     const name = normalizeName(entity.name);
@@ -254,14 +268,9 @@ async function searchNode(
 
     if (!incomingEmbedding) continue;
 
-    if (!kindCache.has(entity.kind)) {
-      kindCache.set(entity.kind, await queryStoredEntities(entity.kind));
-    }
-
-    const rows = kindCache.get(entity.kind)!;
     const matches: ExistingEntityMatch[] = [];
 
-    for (const row of rows) {
+    for (const row of allStoredRows) {
       try {
         const stored = JSON.parse(row.embedding) as number[];
         const similarity = cosineSimilarity(incomingEmbedding, stored);
@@ -286,15 +295,52 @@ async function searchNode(
     }
   }
 
-  return { enrichmentCandidates };
+  // ── Topic context: fetch existing children of the matched Topic ────────────
+  // When the incoming message's Topic matches a stored one, pull all entities
+  // that belong to it so planNode can propagate temporal updates to them.
+  let topicRelatedEntities: TopicContextEntity[] = [];
+  const incomingTopic = state.entities.find((e) => e.kind === "Topic");
+
+  if (incomingTopic) {
+    const topicName = normalizeName(incomingTopic.name);
+    const topicEmbedding = state.entityEmbeddings[topicName];
+
+    if (topicEmbedding) {
+      const matchedTopicName = findBestMatch(allStoredRows, topicEmbedding);
+
+      if (matchedTopicName) {
+        const result = await arcadeDb.query(
+          `SELECT name, kind, scheduledAt, rawTemporal, todoDescription
+           FROM Entity
+           WHERE topic = ${sqlLiteral(matchedTopicName)}`,
+        );
+        topicRelatedEntities = toRows(result) as TopicContextEntity[];
+      }
+    }
+  }
+
+  return { enrichmentCandidates, topicRelatedEntities };
 }
 
 /**
- * Ask the Groq LLM to produce a structured update plan for all enrichment
- * candidates. Only reached when enrichmentCandidates.length > 0.
+ * Ask the Groq LLM to produce a structured update plan.
+ * Reached when there are enrichment candidates OR topic-related entities
+ * that may need temporal updates propagated to them.
  */
-async function planNode(state: Pick<State, "enrichmentCandidates">) {
-  const updatePlan = await generateUpdatePlan(state.enrichmentCandidates);
+async function planNode(
+  state: Pick<State, "enrichmentCandidates" | "topicRelatedEntities" | "entities">,
+) {
+  // Incoming entities that carry temporal data (excludes the Topic itself)
+  const incomingTemporalEntities = state.entities.filter(
+    (e) => e.kind !== "Topic" && (e.scheduledAt || e.rawTemporal),
+  );
+
+  const topicContext =
+    state.topicRelatedEntities.length > 0
+      ? { incomingTemporalEntities, existingTopicEntities: state.topicRelatedEntities }
+      : undefined;
+
+  const updatePlan = await generateUpdatePlan(state.enrichmentCandidates, topicContext);
   console.log("[groq_ai] update plan", JSON.stringify(updatePlan, null, 2));
   return { updatePlan };
 }
@@ -406,6 +452,10 @@ export const GraphState = Annotation.Root({
     reducer: (_, next) => next,
     default: () => [],
   }),
+  topicRelatedEntities: Annotation<TopicContextEntity[]>({
+    reducer: (_, next) => next,
+    default: () => [],
+  }),
   updatePlan: Annotation<UpdatePlan | null>({
     reducer: (_, next) => next,
     default: () => null,
@@ -431,7 +481,9 @@ export const knowledgeGraphWorkflow = new StateGraph(GraphState)
   .addEdge("extract", "embed")
   .addEdge("embed", "search")
   .addConditionalEdges("search", (state) =>
-    state.enrichmentCandidates.length > 0 ? "plan" : "persist",
+    state.enrichmentCandidates.length > 0 || state.topicRelatedEntities.length > 0
+      ? "plan"
+      : "persist",
   )
   .addEdge("plan", "execute")
   .addEdge("execute", "persist")
