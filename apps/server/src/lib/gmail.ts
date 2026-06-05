@@ -1,5 +1,6 @@
 import { env } from "@second-brain/env/server";
 import { google } from "googleapis";
+import { createGoogleAuthClient, hasGoogleCredentials } from "./google-auth";
 import { Provider } from "./provider";
 import { EVENT_QUEUE_NAME, Publisher } from "./publisher";
 
@@ -43,11 +44,7 @@ function extractHeader(headers: Array<{ name?: string | null; value?: string | n
 }
 
 export class GmailProvider extends Provider {
-	private readonly oauth2Client = new google.auth.OAuth2(
-		env.GOOGLE_CLIENT_ID,
-		env.GOOGLE_CLIENT_SECRET,
-	);
-
+	private readonly oauth2Client = createGoogleAuthClient();
 	private readonly gmail = google.gmail({ version: "v1", auth: this.oauth2Client });
 	private lastHistoryId: string | undefined;
 	private pollingTimer: ReturnType<typeof setInterval> | undefined;
@@ -57,12 +54,10 @@ export class GmailProvider extends Provider {
 	}
 
 	async start(): Promise<void> {
-		if (!env.GOOGLE_CLIENT_ID || !env.GOOGLE_CLIENT_SECRET || !env.GOOGLE_REFRESH_TOKEN) {
+		if (!hasGoogleCredentials()) {
 			console.warn("Gmail polling disabled: set GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, and GOOGLE_REFRESH_TOKEN to enable.");
 			return;
 		}
-
-		this.oauth2Client.setCredentials({ refresh_token: env.GOOGLE_REFRESH_TOKEN });
 
 		// Seed the historyId from the current profile so we only capture future emails
 		const profile = await this.gmail.users.getProfile({ userId: "me" });

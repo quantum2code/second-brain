@@ -35,7 +35,10 @@ const oauth2Client = new google.auth.OAuth2(
 	"urn:ietf:wg:oauth:2.0:oob", // out-of-band redirect — copies code to terminal
 );
 
-const SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"];
+const SCOPES = [
+  "https://www.googleapis.com/auth/gmail.readonly",
+  "https://www.googleapis.com/auth/calendar",       // full read+write for Calendar
+];
 
 const authUrl = oauth2Client.generateAuthUrl({
 	access_type: "offline",
