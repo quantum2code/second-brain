@@ -6,6 +6,8 @@ export const env = createEnv({
   server: {
     DATABASE_URL: z.string().min(1),
     REDIS_URL: z.string().min(1),
+    GROQ_API_KEY: z.string().min(1).optional(),
+    GOOGLE_API_KEY: z.string().min(1).optional(),
     ARCADEDB_URL: z.string().url().default("http://localhost:2480/api/v1"),
     ARCADEDB_DATABASE: z.string().min(1).default("SecondBrain"),
     ARCADEDB_USERNAME: z.string().min(1).default("root"),

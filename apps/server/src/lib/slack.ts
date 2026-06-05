@@ -3,6 +3,7 @@ import { Provider, type ProviderCapabilities, type WebhookProvider } from "./pro
 import { EVENT_QUEUE_NAME, Publisher } from "./publisher";
 
 export type SlackMessageJob = {
+	client: "slack";
 	teamId: string;
 	channelId: string;
 	messageId: string;
@@ -15,6 +16,7 @@ const mapMessage = (
 	event: any,
 	teamId: string,
 ): SlackMessageJob => ({
+	client: "slack",
 	teamId,
 	channelId: event.channel,
 	messageId: event.ts,

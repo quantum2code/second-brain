@@ -12,12 +12,20 @@
     "check-types": "pnpm -r check-types",
     "dev:web": "pnpm --filter web dev",
     "dev:server": "pnpm --filter server dev",
+    "dev:worker": "pnpm --filter server dev:worker",
     "db:push": "pnpm --filter @second-brain/db db:push",
     "db:studio": "pnpm --filter @second-brain/db db:studio",
     "db:generate": "pnpm --filter @second-brain/db db:generate",
-		"db:migrate": "pnpm --filter @second-brain/db db:migrate",
-		"arcade:start": "sudo docker run -d --name arcadedb -p 2480:2480 -p 2424:2424   -e JAVA_OPTS='-Darcadedb.server.rootPassword=playwithdata'   arcadedata/arcadedb:latest",
-		"arcade:stop": "sudo docker stop arcadedb"
+    "db:migrate": "pnpm --filter @second-brain/db db:migrate",
+    "services:start": "docker-compose up -d",
+    "services:stop": "docker-compose down",
+    "services:status": "docker-compose ps",
+    "arcadedb:start": "docker-compose up -d arcadedb",
+    "arcadedb:stop": "docker-compose stop arcadedb",
+    "redis:start": "docker-compose up -d redis",
+    "redis:stop": "docker-compose stop redis",
+    "arcadedb:schema": "pnpm --filter server arcadedb:schema",
+    "arcadedb:schema:reset": "pnpm --filter server arcadedb:schema:reset"
   },
   "dependencies": {
     "@second-brain/env": "workspace:*",

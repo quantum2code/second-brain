@@ -12,8 +12,14 @@ export function isAlreadyExistsError(error: unknown): boolean {
   }
 
   const detail = error.response?.data?.detail;
+  const normalizedDetail =
+    typeof detail === "string" ? detail.toLowerCase() : "";
 
-  return typeof detail === "string" && detail.includes("already exists");
+  return (
+    normalizedDetail.includes("already exists") ||
+    normalizedDetail.includes("existent index") ||
+    normalizedDetail.includes("defined on the properties")
+  );
 }
 
 export class ArcadeDbClient {
@@ -44,6 +50,12 @@ export class ArcadeDbClient {
 
       throw error;
     }
+  }
+
+  async dropDatabase(): Promise<void> {
+    await this.http.post("/server", {
+      command: `drop database ${env.ARCADEDB_DATABASE}`,
+    });
   }
 
   async command<T = unknown>(command: string): Promise<T> {

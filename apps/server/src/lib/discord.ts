@@ -4,6 +4,7 @@ import { Provider, type ProviderCapabilities, type RealtimeProvider } from "./pr
 import { EVENT_QUEUE_NAME, Publisher } from "./publisher";
 
 export type DiscordMessageJob = {
+	client: "discord";
 	guildId: string;
 	channelId: string;
 	messageId: string;
@@ -18,6 +19,7 @@ const parseGuildIds = (value: string | undefined): Set<string> =>
 	new Set((value ?? "").split(",").map((guildId) => guildId.trim()).filter(Boolean));
 
 const mapMessage = (message: Message): DiscordMessageJob => ({
+	client: "discord",
 	guildId: message.guildId ?? "",
 	channelId: message.channelId,
 	messageId: message.id,

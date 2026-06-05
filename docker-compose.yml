@@ -1,0 +1,17 @@
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: redis-second-brain
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+
+  arcadedb:
+    image: arcadedata/arcadedb:latest
+    container_name: arcadedb-second-brain
+    ports:
+      - "2480:2480"
+      - "2424:2424"
+    environment:
+      JAVA_OPTS: "-Darcadedb.server.rootPassword=${ARCADEDB_PASSWORD:-playwithdata}"
+    restart: unless-stopped
