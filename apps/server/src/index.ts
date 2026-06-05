@@ -3,6 +3,8 @@ import cors from "cors";
 import express from "express";
 import { CalendarProvider } from "./lib/calendar";
 import { DiscordProvider } from "./lib/discord";
+import { arcadedbRouter } from "./lib/arcadedb/router";
+import { initializeArcadeDb } from "./lib/arcadedb/init";
 import { GmailProvider } from "./lib/gmail";
 import { SlackProvider } from "./lib/slack";
 
@@ -21,6 +23,7 @@ app.use(
 );
 
 app.use(express.json());
+app.use("/api/arcadedb", arcadedbRouter);
 
 app.get("/", (_req, res) => {
   res.status(200).send("OK");
@@ -46,6 +49,7 @@ const shutdown = async () => {
 
 process.once("SIGINT", shutdown);
 process.once("SIGTERM", shutdown);
+await initializeArcadeDb();
 
 app.listen(3000, () => {
   console.log("Server is running on http://localhost:3000");

@@ -1,6 +1,6 @@
 import { env } from "@second-brain/env/server";
 import { Client, GatewayIntentBits, type Message } from "discord.js";
-import { Provider } from "./provider";
+import { Provider, type ProviderCapabilities, type RealtimeProvider } from "./provider";
 import { EVENT_QUEUE_NAME, Publisher } from "./publisher";
 
 export type DiscordMessageJob = {
@@ -28,7 +28,12 @@ const mapMessage = (message: Message): DiscordMessageJob => ({
 	url: message.url,
 });
 
-export class DiscordProvider extends Provider {
+export class DiscordProvider extends Provider implements RealtimeProvider {
+	readonly capabilities: ProviderCapabilities = {
+		inbound: ["ws"],
+		write: [],
+	};
+
 	private readonly client = new Client({
 		intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent],
 	});

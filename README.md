@@ -23,12 +23,26 @@ pnpm install
 
 ## Database Setup
 
-This project uses PostgreSQL with Drizzle ORM.
+This project uses PostgreSQL with Drizzle ORM and ArcadeDB for graph/vector access.
 
 1. Make sure you have a PostgreSQL database set up.
 2. Update your `apps/server/.env` file with your PostgreSQL connection details.
+3. Start ArcadeDB locally if needed:
 
-3. Apply the schema to your database:
+```bash
+pnpm run arcade:start
+```
+
+4. Add ArcadeDB connection settings:
+
+```bash
+ARCADEDB_URL=http://localhost:2480/api/v1
+ARCADEDB_DATABASE=SecondBrain
+ARCADEDB_USERNAME=root
+ARCADEDB_PASSWORD=playwithdata
+```
+
+5. Apply the schema to your database:
 
 ```bash
 pnpm run db:push
@@ -42,6 +56,14 @@ pnpm run dev
 
 Open [http://localhost:3001](http://localhost:3001) in your browser to see the web application.
 The API is running at [http://localhost:3000](http://localhost:3000).
+
+### ArcadeDB API
+
+The server exposes three endpoints:
+
+- `POST /api/arcadedb/setup` - create the database and seed the ArcadeDB schema
+- `POST /api/arcadedb/command` - run SQL command statements
+- `POST /api/arcadedb/query` - run SQL queries
 
 ## UI Customization
 
