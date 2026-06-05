@@ -2,6 +2,7 @@ import { env } from "@second-brain/env/server";
 import { Client, GatewayIntentBits, type Message } from "discord.js";
 import { Provider, type ProviderCapabilities, type RealtimeProvider } from "./provider";
 import { EVENT_QUEUE_NAME, Publisher } from "./publisher";
+import { getUsernameResolver } from "./usernames";
 
 export type DiscordMessageJob = {
 	client: "discord";
@@ -41,6 +42,7 @@ export class DiscordProvider extends Provider implements RealtimeProvider {
 	});
 
 	private readonly guildIds = parseGuildIds(env.DISCORD_GUILD_IDS);
+	private readonly resolver = getUsernameResolver();
 
 	constructor(private readonly publisher = new Publisher<DiscordMessageJob>(EVENT_QUEUE_NAME)) {
 		super();
@@ -62,6 +64,10 @@ export class DiscordProvider extends Provider implements RealtimeProvider {
 			if (this.guildIds.size > 0 && !this.guildIds.has(message.guildId)) {
 				return;
 			}
+
+			// Discord always provides the username — seed the cache so it's
+			// persisted to disk without an extra API round-trip.
+			await this.resolver.seed("discord", message.author.id, message.author.username);
 
 			await this.publisher.append(mapMessage(message));
 		});

@@ -6,6 +6,8 @@ const structuralCommands = [
   "CREATE VERTEX TYPE Entity IF NOT EXISTS;",
   // Person properties
   "CREATE PROPERTY Person.name IF NOT EXISTS STRING;",
+  "CREATE PROPERTY Person.discordId IF NOT EXISTS STRING;",
+  "CREATE PROPERTY Person.slackId IF NOT EXISTS STRING;",
   "CREATE PROPERTY Person.firstSeenAt IF NOT EXISTS STRING;",
   // Message properties
   "CREATE PROPERTY Message.name IF NOT EXISTS STRING;",
@@ -19,6 +21,8 @@ const structuralCommands = [
   "CREATE PROPERTY Entity.rawTemporal IF NOT EXISTS STRING;",
   "CREATE PROPERTY Entity.embedding IF NOT EXISTS STRING;",
   "CREATE PROPERTY Entity.todoDescription IF NOT EXISTS STRING;",
+  "CREATE PROPERTY Entity.topic IF NOT EXISTS STRING;",
+  "CREATE PROPERTY Entity.completedAt IF NOT EXISTS STRING;",
   // Unique indexes
   "CREATE INDEX ON Person (name) UNIQUE;",
   "CREATE INDEX ON Message (name) UNIQUE;",

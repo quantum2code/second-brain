@@ -1,4 +1,4 @@
-import { knowledgeGraphWorkflow } from "@/agents";
+import { invokeWorkerAgent } from "@/agents/worker-agent/agent";
 import { formatAiInput, type EventMessageJob } from "@/lib/events";
 import { deterministicMessageName } from "@/lib/deterministic";
 import { AI_QUEUE_NAME, closeAiQueue } from "@/lib/ai";
@@ -11,18 +11,20 @@ export const worker = new Worker<EventMessageJob[]>(
 		for (const message of job.data) {
 			const text = formatAiInput(message);
 			const sourceMessageName = deterministicMessageName(message);
+			const messageAuthor = message.authorUsername || message.authorId;
 
 			if (!text.trim()) {
 				continue;
 			}
 
 			try {
-				const result = await knowledgeGraphWorkflow.invoke({ text, sourceMessageName, messageCreatedAt: message.createdAt });
-				console.log("[groq_ai] extracted message", {
-					entities: JSON.stringify(result.entities),
-					relations: JSON.stringify(result.createdEdges),
-					persisted: result.persisted,
+				await invokeWorkerAgent({
+					text,
+					sourceMessageName,
+					messageCreatedAt: message.createdAt,
+					messageAuthor,
 				});
+				console.log("[groq_ai] worker agent completed processing message", sourceMessageName);
 			} catch (error) {
 				console.error("[groq_ai] extraction failed", job.id, error);
 				throw error;

@@ -17,11 +17,13 @@ export const llm = new ChatGroq({
 
 export const extractor = llm.withStructuredOutput(ExtractionSchema);
 
-export async function extractKnowledge(text: string, messageCreatedAt: string) {
+export async function extractKnowledge(text: string, messageCreatedAt: string, author = "unknown") {
   return extractor.invoke(`
-Extract entities from the message text below.
+Extract entities from the message below.
 
-Message sent at: ${messageCreatedAt} (use this as "now" when resolving relative time expressions)
+Message sent at : ${messageCreatedAt} (use as "now" for relative time expressions)
+Message author  : ${author}
+  ↳ The author is ALREADY tracked by the system. Do NOT extract '${author}' as a Person entity.
 
 ════════════════════════════════════════
 STRUCTURE  (read this first)
@@ -112,7 +114,7 @@ RULES
 - Include entities explicitly mentioned OR clearly implied by context.
 - Give implied events/todos a descriptive name combining subject and action
   (e.g. "math project submission", "weekly standup meeting").
-- Do NOT include the message author as an entity (tracked separately by the deterministic pipeline).
+- '${author}' is the message author — NEVER extract them as a Person entity.
 - Do NOT invent the message itself as an entity.
 - Prefer specific, named entities over generic terms.
 - SKIP any entry whose name looks like a raw platform ID (all-caps alphanumeric strings like

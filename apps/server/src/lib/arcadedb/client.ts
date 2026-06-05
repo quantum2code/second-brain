@@ -1,8 +1,10 @@
 import axios, { type AxiosInstance } from "axios";
 import { env } from "@second-brain/env/server";
 
-type ArcadeDbSqlBody = {
-  language: "sql";
+type QueryLanguage = "sql" | "cypher" | "gremlin";
+
+type ArcadeDbQueryBody = {
+  language: QueryLanguage;
   command: string;
 };
 
@@ -58,15 +60,15 @@ export class ArcadeDbClient {
     });
   }
 
-  async command<T = unknown>(command: string): Promise<T> {
-    const body: ArcadeDbSqlBody = { language: "sql", command };
+  async command<T = unknown>(command: string, language: QueryLanguage = "sql"): Promise<T> {
+    const body: ArcadeDbQueryBody = { language, command };
     const response = await this.http.post(`/command/${env.ARCADEDB_DATABASE}`, body);
 
     return response.data as T;
   }
 
-  async query<T = unknown>(query: string): Promise<T> {
-    const body: ArcadeDbSqlBody = { language: "sql", command: query };
+  async query<T = unknown>(query: string, language: QueryLanguage = "sql"): Promise<T> {
+    const body: ArcadeDbQueryBody = { language, command: query };
     const response = await this.http.post(`/query/${env.ARCADEDB_DATABASE}`, body);
 
     return response.data as T;

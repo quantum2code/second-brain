@@ -14,6 +14,8 @@ export const env = createEnv({
     ARCADEDB_PASSWORD: z.string().min(1).default("playwithdata"),
     DISCORD_BOT_TOKEN: z.string().min(1).optional(),
     DISCORD_GUILD_IDS: z.string().min(1).optional(),
+    SLACK_BOT_TOKEN: z.string().min(1).optional(),
+    SLACK_SIGNING_SECRET: z.string().min(1).optional(),
     CORS_ORIGIN: z.url(),
     SUPABASE_URL: z.url().optional(),
     SUPABASE_ANON_KEY: z.string().min(1).optional(),

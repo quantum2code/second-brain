@@ -22,18 +22,11 @@ type State = {
   text: string;
   sourceMessageName: string;
   messageCreatedAt: string;
+  messageAuthor: string;
   entities: ExtractedEntity[];
-  /** name → embedding vector, populated by embedNode before any DB writes. */
   entityEmbeddings: Record<string, number[]>;
-  /** Entities that have ≥2 similar matches in the graph — need LLM judgment. */
   enrichmentCandidates: EnrichmentCandidate[];
-  /**
-   * Existing child entities of the matched Topic fetched from the graph.
-   * Populated by searchNode so planNode can propagate temporal updates
-   * (e.g. postponements) to already-stored Events and Todos.
-   */
   topicRelatedEntities: TopicContextEntity[];
-  /** LLM-generated update plan; null when neither enrichment candidates nor topic context exist. */
   updatePlan: UpdatePlan | null;
   createdEdges: CreatedEdge[];
   persisted: boolean;
@@ -61,13 +54,6 @@ const toRows = (value: unknown): unknown[] => {
 
 // ── DB helpers ────────────────────────────────────────────────────────────────
 
-async function findEntity(name: string): Promise<boolean> {
-  const result = await arcadeDb.query(
-    `SELECT FROM Entity WHERE name = ${sqlLiteral(name)} LIMIT 1`,
-  );
-
-  return toRows(result).length > 0;
-}
 
 type StoredEntityRow = {
   name: string;
@@ -169,22 +155,25 @@ async function upsertEntity(
     }
   }
 
-  // --- No match — create or update the entity ---
-  const extraFields = [
-    entity.topic           ? `, topic = ${sqlLiteral(entity.topic)}`                         : "",
-    entity.scheduledAt     ? `, scheduledAt = ${sqlLiteral(entity.scheduledAt)}`             : "",
-    entity.rawTemporal     ? `, rawTemporal = ${sqlLiteral(entity.rawTemporal)}`             : "",
-    entity.todoDescription ? `, todoDescription = ${sqlLiteral(entity.todoDescription)}`     : "",
-    embedding              ? `, embedding = ${sqlLiteral(JSON.stringify(embedding))}`        : "",
-  ].join("");
+  // --- No match — create or update the entity via a single Cypher MERGE ---
+  // ON CREATE SET: all fields including firstSeenAt (set once, never overwritten).
+  // ON MATCH SET:  same fields minus firstSeenAt — preserves the original value.
+  const optionalSets = [
+    entity.topic           ? `e.topic = ${sqlLiteral(entity.topic)}`                       : "",
+    entity.scheduledAt     ? `e.scheduledAt = ${sqlLiteral(entity.scheduledAt)}`           : "",
+    entity.rawTemporal     ? `e.rawTemporal = ${sqlLiteral(entity.rawTemporal)}`           : "",
+    entity.todoDescription ? `e.todoDescription = ${sqlLiteral(entity.todoDescription)}`   : "",
+    embedding              ? `e.embedding = ${sqlLiteral(JSON.stringify(embedding))}`      : "",
+  ].filter(Boolean);
+
+  const baseSet     = [`e.kind = ${sqlLiteral(entity.kind)}`, ...optionalSets].join(", ");
+  const onCreateSet = [`e.firstSeenAt = ${sqlLiteral(now)}`, ...optionalSets, `e.kind = ${sqlLiteral(entity.kind)}`].join(", ");
 
   await arcadeDb.command(
-    `UPDATE Entity SET name = ${sqlLiteral(name)}, kind = ${sqlLiteral(entity.kind)}${extraFields} UPSERT WHERE name = ${sqlLiteral(name)}`,
-  );
-
-  // Set firstSeenAt only on first insertion — never overwrite
-  await arcadeDb.command(
-    `UPDATE Entity SET firstSeenAt = ${sqlLiteral(now)} WHERE name = ${sqlLiteral(name)} AND firstSeenAt IS NULL`,
+    `MERGE (e:Entity {name: ${sqlLiteral(name)}})
+     ON CREATE SET ${onCreateSet}
+     ON MATCH SET  ${baseSet}`,
+    "cypher",
   );
 
   return name;
@@ -221,8 +210,8 @@ async function persistExtraction(
 
 // ── Graph nodes ───────────────────────────────────────────────────────────────
 
-async function extractNode(state: Pick<State, "text" | "messageCreatedAt">) {
-  return extractKnowledge(state.text, state.messageCreatedAt);
+async function extractNode(state: Pick<State, "text" | "messageCreatedAt" | "messageAuthor">) {
+  return extractKnowledge(state.text, state.messageCreatedAt, state.messageAuthor);
 }
 
 /**
@@ -360,14 +349,23 @@ async function executeNode(state: Pick<State, "updatePlan">) {
           `[groq_ai] execute merge: "${action.incomingName}" → "${action.targetName}" — ${action.reason}`,
         );
 
-        // Re-route existing MENTIONS edges that point to incomingName → targetName
+        // Re-route every MENTIONS edge that points at incomingName to targetName.
+        // MERGE (instead of CREATE) is idempotent — safe if the edge already exists.
+        // DELETE r removes the old edge once the new one is in place.
         await arcadeDb.command(
-          `UPDATE EDGE MENTIONS SET @in = (SELECT FROM Entity WHERE name = ${sqlLiteral(action.targetName)} LIMIT 1) WHERE @in = (SELECT FROM Entity WHERE name = ${sqlLiteral(action.incomingName)} LIMIT 1)`,
+          `MATCH (msg:Message)-[r:MENTIONS]->(old:Entity {name: ${sqlLiteral(action.incomingName)}})
+           MATCH (target:Entity {name: ${sqlLiteral(action.targetName)}})
+           MERGE (msg)-[:MENTIONS]->(target)
+           DELETE r`,
+          "cypher",
         );
 
-        // Delete the now-redundant incoming entity if it exists
+        // DETACH DELETE removes the vertex AND any remaining edges — safer than a
+        // plain DELETE which may leave orphaned edges in some graph DBs.
         await arcadeDb.command(
-          `DELETE FROM Entity WHERE name = ${sqlLiteral(action.incomingName)}`,
+          `MATCH (e:Entity {name: ${sqlLiteral(action.incomingName)}})
+           DETACH DELETE e`,
+          "cypher",
         );
         break;
       }
@@ -414,14 +412,16 @@ async function persistNode(
 
   const createdEdges: CreatedEdge[] = [];
 
-  // Create MENTIONS edges from the source message to each canonical entity
+  // Create MENTIONS edges from the source message to each canonical entity.
+  // MATCH (msg), (entity) naturally acts as the existence guard — if either
+  // vertex is missing the MATCH returns nothing and MERGE is never reached.
+  // This replaces the previous findEntity() pre-check + CREATE EDGE IF NOT EXISTS.
   for (const canonicalName of new Set(nameMap.values())) {
-    if (!(await findEntity(canonicalName))) {
-      continue;
-    }
-
     await arcadeDb.command(
-      `CREATE EDGE MENTIONS FROM (SELECT FROM Message WHERE name = ${sqlLiteral(state.sourceMessageName)} LIMIT 1) TO (SELECT FROM Entity WHERE name = ${sqlLiteral(canonicalName)} LIMIT 1) IF NOT EXISTS`,
+      `MATCH (msg:Message {name: ${sqlLiteral(state.sourceMessageName)}}),
+             (entity:Entity {name: ${sqlLiteral(canonicalName)}})
+       MERGE (msg)-[:MENTIONS]->(entity)`,
+      "cypher",
     );
 
     createdEdges.push({
@@ -440,6 +440,10 @@ export const GraphState = Annotation.Root({
   text: Annotation<string>,
   sourceMessageName: Annotation<string>,
   messageCreatedAt: Annotation<string>,
+  messageAuthor: Annotation<string>({
+    reducer: (_, next) => next,
+    default: () => "",
+  }),
   entities: Annotation<ExtractedEntity[]>({
     reducer: (_, next) => next,
     default: () => [],
@@ -480,11 +484,16 @@ export const knowledgeGraphWorkflow = new StateGraph(GraphState)
   .addEdge(START, "extract")
   .addEdge("extract", "embed")
   .addEdge("embed", "search")
-  .addConditionalEdges("search", (state) =>
-    state.enrichmentCandidates.length > 0 || state.topicRelatedEntities.length > 0
-      ? "plan"
-      : "persist",
-  )
+  .addConditionalEdges("search", (state) => {
+    const hasEnrichmentCandidates = state.enrichmentCandidates.length > 0;
+    // Only trigger planNode for topic-context updates when there are actual
+    // incoming temporal entities — prevents a needless LLM call when the
+    // message simply mentions a known topic with no dates or times.
+    const hasIncomingTemporalData =
+      state.topicRelatedEntities.length > 0 &&
+      state.entities.some((e) => e.kind !== "Topic" && (e.scheduledAt || e.rawTemporal));
+    return hasEnrichmentCandidates || hasIncomingTemporalData ? "plan" : "persist";
+  })
   .addEdge("plan", "execute")
   .addEdge("execute", "persist")
   .addEdge("persist", END)

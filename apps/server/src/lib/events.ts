@@ -8,7 +8,7 @@ export const formatEventMessage = (message: EventMessageJob): string => {
 		case "discord":
 			return `[discord] ${message.authorUsername} in ${message.guildId}#${message.channelId}: ${message.content || "<empty>"}`;
 		case "slack":
-			return `[slack] ${message.authorId} in ${message.teamId}#${message.channelId}: ${message.content || "<empty>"}`;
+			return `[slack] ${message.authorUsername} in ${message.teamId}#${message.channelId}: ${message.content || "<empty>"}`;
 	}
 };
 
@@ -22,14 +22,8 @@ const stripMentions = (content: string): string =>
 export const formatAiInput = (message: EventMessageJob): string => {
 	switch (message.client) {
 		case "discord":
-			return [
-				`author: ${message.authorUsername || message.authorId}`,
-				`content: ${stripMentions(message.content) || "<empty>"}`,
-			].join("\n");
+			return stripMentions(message.content) || "<empty>";
 		case "slack":
-			return [
-				`author: ${message.authorId}`,
-				`content: ${stripMentions(message.content) || "<empty>"}`,
-			].join("\n");
+			return stripMentions(message.content) || "<empty>";
 	}
 };

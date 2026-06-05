@@ -1,6 +1,7 @@
 import type { Request } from "express";
 import { Provider, type ProviderCapabilities, type WebhookProvider } from "./provider";
 import { EVENT_QUEUE_NAME, Publisher } from "./publisher";
+import { getUsernameResolver } from "./usernames";
 
 export type SlackMessageJob = {
 	client: "slack";
@@ -8,6 +9,8 @@ export type SlackMessageJob = {
 	channelId: string;
 	messageId: string;
 	authorId: string;
+	/** Resolved from Slack users.info API — may fall back to authorId if unavailable. */
+	authorUsername: string;
 	content: string;
 	createdAt: string;
 };
@@ -15,7 +18,7 @@ export type SlackMessageJob = {
 const mapMessage = (
 	event: any,
 	teamId: string,
-): SlackMessageJob => ({
+): Omit<SlackMessageJob, "authorUsername"> => ({
 	client: "slack",
 	teamId,
 	channelId: event.channel,
@@ -32,6 +35,8 @@ export class SlackProvider extends Provider implements WebhookProvider {
 		inbound: ["webhook"],
 		write: [],
 	};
+
+	private readonly resolver = getUsernameResolver();
 
 	constructor(private readonly publisher = new Publisher<SlackMessageJob>(EVENT_QUEUE_NAME)) {
 		super();
@@ -50,8 +55,16 @@ export class SlackProvider extends Provider implements WebhookProvider {
 	}
 
 	async handleEvent(body: any) {
-		if (body.event?.type === "message") {
-			await this.publisher.append(mapMessage(body.event, body.team_id));
+		if (body.event?.type === "message" && body.event.user) {
+			const partial = mapMessage(body.event, body.team_id);
+
+			// Resolve username via Slack API (cached after first lookup)
+			const authorUsername = await this.resolver.resolve(
+				"slack",
+				partial.authorId,
+			);
+
+			await this.publisher.append({ ...partial, authorUsername });
 		}
 	}
 
