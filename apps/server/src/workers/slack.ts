@@ -2,6 +2,8 @@ import { Worker } from "bullmq";
 import { env } from "@second-brain/env/server";
 import { formatEventMessage } from "../lib/events";
 import { EVENT_QUEUE_NAME } from "../lib/publisher";
+import { persistDeterministicMessage } from "../lib/deterministic";
+import { enqueueAiBatch } from "../lib/ai";
 import type { EventMessageJob } from "../lib/events";
 
 export const worker = new Worker<EventMessageJob[]>(
@@ -9,7 +11,10 @@ export const worker = new Worker<EventMessageJob[]>(
 	async (job) => {
 		for (const message of job.data) {
 			console.log(formatEventMessage(message));
+			await persistDeterministicMessage(message);
 		}
+
+		await enqueueAiBatch(job.data);
 
 		return job.data;
 	},

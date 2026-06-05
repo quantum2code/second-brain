@@ -8,10 +8,17 @@
     "compile": "bun build --compile --minify --sourcemap --bytecode ./src/index.ts --outfile server",
     "dev": "tsx watch src/index.ts",
     "dev:worker": "tsx watch src/workers/index.ts",
-    "start": "node dist/index.mjs"
+    "start": "node dist/index.mjs",
+    "arcadedb:schema": "tsx src/scripts/arcadedb-schema.ts",
+    "arcadedb:schema:reset": "tsx src/scripts/arcadedb-schema.ts --reset"
   },
   "dependencies": {
     "@google-cloud/local-auth": "2.1.0",
+    "@langchain/core": "^1.1.48",
+    "@langchain/google": "^0.1.12",
+    "@langchain/google-genai": "^2.1.31",
+    "@langchain/groq": "^1.2.1",
+    "@langchain/langgraph": "^1.3.4",
     "@second-brain/db": "workspace:*",
     "@second-brain/env": "workspace:*",
     "@supabase/supabase-js": "^2.106.2",

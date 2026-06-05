@@ -18,10 +18,28 @@ export const isCalendarEventJob = (
 ): message is CalendarEventJob => "calendarId" in message;
 
 export const formatEventMessage = (message: EventMessageJob): string => {
-	if (isDiscordMessageJob(message)) {
-		return `[discord] ${message.authorUsername} in ${message.guildId}#${message.channelId}: ${message.content || "<empty>"}`;
+	switch (message.client) {
+		case "discord":
+			return `[discord] ${message.authorUsername} in ${message.guildId}#${message.channelId}: ${message.content || "<empty>"}`;
+		case "slack":
+			return `[slack] ${message.authorUsername} in ${message.teamId}#${message.channelId}: ${message.content || "<empty>"}`;
 	}
+};
 
+/**
+ * Strip platform-specific mention syntax so raw IDs don't reach the LLM.
+ * Handles Slack/Discord: <@USER>, <#CHANNEL>, <!here>, <!channel>, <@&ROLE>
+ */
+const stripMentions = (content: string): string =>
+	content.replace(/<[#!@][^>]*>/g, "").replace(/\s{2,}/g, " ").trim();
+
+export const formatAiInput = (message: EventMessageJob): string => {
+	switch (message.client) {
+		case "discord":
+			return stripMentions(message.content) || "<empty>";
+		case "slack":
+			return stripMentions(message.content) || "<empty>";
+	}
 	if (isGmailMessageJob(message)) {
 		return `[gmail] ${message.from} → subject: "${message.subject}" — ${message.snippet || "<empty>"}`;
 	}

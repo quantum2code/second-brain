@@ -1,21 +1,38 @@
 import { arcadeDb, isAlreadyExistsError } from "./client";
 
 const structuralCommands = [
-  "CREATE VERTEX TYPE Project IF NOT EXISTS;",
-  "CREATE VERTEX TYPE WorkspaceItem IF NOT EXISTS;",
   "CREATE VERTEX TYPE Person IF NOT EXISTS;",
-  "CREATE VERTEX TYPE Event IF NOT EXISTS;",
-  "CREATE VERTEX TYPE Concept IF NOT EXISTS;",
-  "CREATE PROPERTY WorkspaceItem.embedding_vector IF NOT EXISTS ARRAY_OF_FLOATS;",
-  "CREATE EDGE TYPE BELONGS_TO IF NOT EXISTS;",
-  "CREATE EDGE TYPE AUTHORED_BY IF NOT EXISTS;",
-  "CREATE EDGE TYPE REFERENCES IF NOT EXISTS;",
+  "CREATE VERTEX TYPE Message IF NOT EXISTS;",
+  "CREATE VERTEX TYPE Entity IF NOT EXISTS;",
+  // Person properties
+  "CREATE PROPERTY Person.name IF NOT EXISTS STRING;",
+  "CREATE PROPERTY Person.discordId IF NOT EXISTS STRING;",
+  "CREATE PROPERTY Person.slackId IF NOT EXISTS STRING;",
+  "CREATE PROPERTY Person.firstSeenAt IF NOT EXISTS STRING;",
+  // Message properties
+  "CREATE PROPERTY Message.name IF NOT EXISTS STRING;",
+  "CREATE PROPERTY Message.content IF NOT EXISTS STRING;",
+  "CREATE PROPERTY Message.createdAt IF NOT EXISTS STRING;",
+  // Entity properties
+  "CREATE PROPERTY Entity.name IF NOT EXISTS STRING;",
+  "CREATE PROPERTY Entity.kind IF NOT EXISTS STRING;",
+  "CREATE PROPERTY Entity.firstSeenAt IF NOT EXISTS STRING;",
+  "CREATE PROPERTY Entity.scheduledAt IF NOT EXISTS STRING;",
+  "CREATE PROPERTY Entity.rawTemporal IF NOT EXISTS STRING;",
+  "CREATE PROPERTY Entity.embedding IF NOT EXISTS STRING;",
+  "CREATE PROPERTY Entity.todoDescription IF NOT EXISTS STRING;",
+  "CREATE PROPERTY Entity.topic IF NOT EXISTS STRING;",
+  "CREATE PROPERTY Entity.completedAt IF NOT EXISTS STRING;",
+  // Unique indexes
+  "CREATE INDEX ON Person (name) UNIQUE;",
+  "CREATE INDEX ON Message (name) UNIQUE;",
+  "CREATE INDEX ON Entity (name) UNIQUE;",
+  // Edge types
+  "CREATE EDGE TYPE AUTHORED IF NOT EXISTS;",
   "CREATE EDGE TYPE MENTIONS IF NOT EXISTS;",
-  "CREATE EDGE TYPE SEMANTICALLY_SAME IF NOT EXISTS;",
+  "CREATE INDEX ON AUTHORED (`@out`, `@in`) UNIQUE;",
+  "CREATE INDEX ON MENTIONS (`@out`, `@in`) UNIQUE;",
 ];
-
-const vectorIndexCommand =
-  'CREATE INDEX ON WorkspaceItem (embedding_vector) LSM_VECTOR METADATA {dimensions: 1536, similarity: "COSINE"};';
 
 export async function initializeArcadeDb(): Promise<void> {
   await arcadeDb.ensureDatabase();
@@ -27,29 +44,6 @@ export async function initializeArcadeDb(): Promise<void> {
       if (!isAlreadyExistsError(error)) {
         throw error;
       }
-    }
-  }
-
-  await new Promise((resolve) => setTimeout(resolve, 2000));
-
-  let attempts = 0;
-  const maxAttempts = 5;
-
-  while (attempts < maxAttempts) {
-    try {
-      attempts++;
-      await arcadeDb.command(vectorIndexCommand);
-      return;
-    } catch (error) {
-      if (isAlreadyExistsError(error)) {
-        return;
-      }
-
-      if (attempts >= maxAttempts) {
-        throw error;
-      }
-
-      await new Promise((resolve) => setTimeout(resolve, 3000));
     }
   }
 }
