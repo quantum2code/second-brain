@@ -1,9 +1,11 @@
 "use client";
 import React, { useState, useEffect } from "react";
 import DashboardLayout from "@/components/dashboard-layout";
+import { formatDateInIST } from "@/lib/time";
 import {
   CheckSquare, ExternalLink, X, ChevronRight, Brain, Link2,
   AlertCircle, User, ArrowUpRight, Clock, MessageSquare, Zap,
+  Sparkles, CalendarDays,
 } from "lucide-react";
 
 /* ─── Keyframes & CSS ─── */
@@ -83,6 +85,17 @@ type TodoFeedItem = {
   isRecent: boolean;
 };
 
+type EventFeedItem = {
+  id: string;
+  title: string;
+  detail: string;
+  createdAt?: string;
+  scheduledAt?: string;
+  rawTemporal?: string;
+  isUpcoming: boolean;
+  isRecent: boolean;
+};
+
 /* ─── Helpers ─── */
 function formatAge(createdAt: string): string {
   const delta = Date.now() - new Date(createdAt).getTime();
@@ -102,13 +115,13 @@ function formatScheduled(s: string): string {
     const mins = Math.round(diffMs / 60_000);
     if (mins < 60)  return `Due in ${mins}m`;
     if (mins < 1440) return `Due in ${Math.round(mins / 60)}h`;
-    return `Due ${d.toLocaleDateString(undefined, { month: "short", day: "numeric" })}`;
+    return `Due ${formatDateInIST(d)}`;
   }
   const overMs = -diffMs;
   const overMins = Math.round(overMs / 60_000);
   if (overMins < 60)  return `Overdue ${overMins}m`;
   if (overMins < 1440) return `Overdue ${Math.round(overMins / 60)}h`;
-  return `Overdue ${d.toLocaleDateString(undefined, { month: "short", day: "numeric" })}`;
+  return `Overdue ${formatDateInIST(d)}`;
 }
 
 const clientToIcon = (c: string) => (["slack","discord","gmail","github","calendar"].includes(c) ? c : "github");
@@ -116,6 +129,42 @@ const clientToName = (c: string) => ({ slack:"Slack", discord:"Discord", gmail:"
 
 /* ─── Live todos hook ─── */
 const SERVER_URL = process.env.NEXT_PUBLIC_SERVER_URL ?? "http://localhost:3000";
+
+function useEvents() {
+  const [events, setEvents] = useState<EventFeedItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [isLive, setIsLive] = useState(false);
+
+  const fetchEvents = async () => {
+    try {
+      const res = await fetch(`${SERVER_URL}/api/arcadedb/events`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = (await res.json()) as { events: EventFeedItem[] };
+      if (data.events.length > 0) {
+        setEvents(data.events);
+        setIsLive(true);
+      } else {
+        setIsLive(false);
+      }
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Connection failed");
+      setIsLive(false);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchEvents();
+    const iv = setInterval(fetchEvents, 30_000);
+    return () => clearInterval(iv);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return { events, loading, error, isLive };
+}
 
 function useTodos() {
   const [todos,   setTodos]   = useState<TodoFeedItem[]>([]);
@@ -187,6 +236,97 @@ const DEMO_TODOS: TodoFeedItem[] = [
     isUpcoming: false, isRecent: false,
   },
 ];
+
+const DEMO_EVENTS: EventFeedItem[] = [
+  {
+    id: "slack:evt-001",
+    title: "Launch brief reminder",
+    detail: "Reminder to submit the launch brief by tomorrow EOD.",
+    createdAt: new Date(Date.now() - 4 * 60_000).toISOString(),
+    isUpcoming: true,
+    isRecent: true,
+  },
+  {
+    id: "gmail:evt-002",
+    title: "Legal redlines received",
+    detail: "MSA attached with notes on sections 7.2, 7.4 and 12.1.",
+    createdAt: new Date(Date.now() - 10 * 60_000).toISOString(),
+    isUpcoming: true,
+    isRecent: false,
+  },
+  {
+    id: "github:evt-003",
+    title: "PR #142 ready for review",
+    detail: "Context retrieval refactored to a streaming pipeline.",
+    createdAt: new Date(Date.now() - 60 * 60_000).toISOString(),
+    isUpcoming: false,
+    isRecent: false,
+  },
+];
+
+function getEventTimeLabel(event: EventFeedItem) {
+  if (event.scheduledAt) return formatScheduled(event.scheduledAt);
+  if (event.rawTemporal) return event.rawTemporal;
+  if (event.createdAt) return formatAge(event.createdAt);
+  return "Event";
+}
+
+function EventCard({ event }: { event: EventFeedItem }) {
+  return (
+    <div className="snap-start min-w-[260px] max-w-[260px] rounded-2xl border border-slate-200 dark:border-slate-800/50 bg-white dark:bg-[#111218] overflow-hidden shadow-sm dark:shadow-none hover:-translate-y-0.5 transition-transform">
+      <div className="h-1.5 bg-gradient-to-r from-purple-500 via-indigo-500 to-cyan-400" />
+      <div className="p-4">
+        <div className="flex items-start justify-between gap-3 mb-3">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="flex items-center justify-center w-8 h-8 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 shrink-0">
+              <CalendarDays className="w-3.5 h-3.5 text-purple-500" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">
+                Event
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-col items-end gap-1 shrink-0">
+            {event.isUpcoming && (
+              <span className="text-[8px] font-mono font-bold uppercase tracking-widest px-2 py-0.5 rounded-full border text-blue-300 border-blue-700/40 bg-blue-950/30">
+                Upcoming
+              </span>
+            )}
+            {event.isRecent && !event.isUpcoming && (
+              <span className="text-[8px] font-mono font-bold uppercase tracking-widest px-2 py-0.5 rounded-full border text-purple-300 border-purple-700/40 bg-purple-950/30">
+                New
+              </span>
+            )}
+          </div>
+        </div>
+
+        <h3 className="text-[13px] font-bold text-slate-800 dark:text-white leading-tight line-clamp-2">{event.title}</h3>
+        <p className="mt-2 text-[11px] text-slate-500 dark:text-slate-500 leading-snug line-clamp-3">{event.detail}</p>
+
+        <div className="mt-4 flex items-center justify-between gap-2">
+          <span className="text-[10px] font-mono text-slate-500 dark:text-slate-600 shrink-0">{getEventTimeLabel(event)}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function EventCarouselSkeleton() {
+  return (
+    <div className="flex gap-3 overflow-hidden pb-1">
+      {[0, 1, 2].map((i) => (
+        <div key={i} className="min-w-[260px] max-w-[260px] rounded-2xl border border-slate-200 dark:border-slate-800/50 bg-white dark:bg-[#111218] p-4">
+          <div className="skeleton-pulse h-8 w-8 rounded-xl bg-slate-200 dark:bg-slate-800/70 mb-3" />
+          <div className="skeleton-pulse h-3 w-20 rounded bg-slate-200 dark:bg-slate-800/70 mb-2" />
+          <div className="skeleton-pulse h-4 w-44 rounded bg-slate-200 dark:bg-slate-800/70 mb-2" />
+          <div className="skeleton-pulse h-3 w-full rounded bg-slate-200 dark:bg-slate-800/70 mb-1.5" />
+          <div className="skeleton-pulse h-3 w-5/6 rounded bg-slate-200 dark:bg-slate-800/70" />
+        </div>
+      ))}
+    </div>
+  );
+}
 
 /* ─── Source Icon ─── */
 function SourceIcon({ type, size = 13 }: { type: string; size?: number }) {
@@ -482,10 +622,12 @@ export default function DashboardPage() {
   const [mounted,      setMounted]      = useState(false);
 
   const { todos: liveTodos, loading, error, isLive } = useTodos();
+  const { events: liveEvents, loading: eventsLoading, error: eventsError, isLive: eventsLive } = useEvents();
 
   useEffect(() => { setMounted(true); }, []);
 
   const allTodos = isLive ? liveTodos : DEMO_TODOS;
+  const allEvents = eventsLive ? liveEvents : DEMO_EVENTS;
   const todos = activeFilter === "upcoming"
     ? allTodos.filter((t) => t.isUpcoming)
     : allTodos;
@@ -500,6 +642,46 @@ export default function DashboardPage() {
 
         {/* ── Left: Todo Timeline ── */}
         <div className={`flex flex-col h-full transition-all duration-300 min-w-0 ${selectedId ? "w-[440px] shrink-0" : "flex-1"}`}>
+
+          {/* Events carousel */}
+          <div className="shrink-0 mb-4">
+            <div className="flex items-end justify-between gap-4 mb-2">
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <p className="text-[9px] font-mono text-slate-500 dark:text-slate-600 uppercase tracking-[0.22em]">Events</p>
+                  <span className={`flex items-center gap-1 text-[8px] font-mono font-bold tracking-widest uppercase px-2 py-0.5 rounded-full border ${
+                    eventsLive
+                      ? "text-emerald-400 border-emerald-700/40 bg-emerald-950/30"
+                      : "text-slate-500 border-slate-700/40 bg-slate-900/40"
+                  }`}>
+                    <span className={`w-1 h-1 rounded-full ${eventsLive ? "bg-emerald-400 animate-pulse" : "bg-slate-600"}`} />
+                    {eventsLoading ? "loading" : eventsLive ? "live" : eventsError ? "offline" : "demo"}
+                  </span>
+                </div>
+                <p className="text-[12px] text-slate-500 dark:text-slate-500">Recent source activity in a quick scan.</p>
+              </div>
+              <div className="flex items-center gap-1.5 text-[10px] font-mono text-slate-500 dark:text-slate-600 uppercase tracking-widest">
+                <Sparkles className="w-3 h-3 text-purple-500" />
+                {allEvents.length} cards
+              </div>
+            </div>
+
+            <div className="feed-scroll overflow-x-auto overflow-y-hidden pb-1">
+              {mounted && eventsLoading ? (
+                <EventCarouselSkeleton />
+              ) : allEvents.length === 0 ? (
+                <div className="flex items-center justify-center h-[138px] rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-600 text-[11px]">
+                  No events yet
+                </div>
+              ) : (
+                <div className="flex gap-3 snap-x snap-mandatory">
+                  {allEvents.map((event) => (
+                    <EventCard key={event.id} event={event} />
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
 
           {/* Pinned header */}
           <div className="flex items-end justify-between mb-5 shrink-0">

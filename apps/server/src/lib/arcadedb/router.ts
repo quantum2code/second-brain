@@ -82,6 +82,17 @@ type TodoFeedItem = {
   isRecent: boolean;
 };
 
+type EventFeedItem = {
+  id: string;
+  title: string;
+  detail: string;
+  createdAt?: string;
+  scheduledAt?: string;
+  rawTemporal?: string;
+  isUpcoming: boolean;
+  isRecent: boolean;
+};
+
 const toRows = (value: unknown): unknown[] => {
   if (Array.isArray(value)) return value;
   if (value && typeof value === "object") {
@@ -241,6 +252,72 @@ arcadedbRouter.get("/feed", async (_req, res, next) => {
 });
 
 /**
+ * GET /api/arcadedb/events
+ *
+ * Returns a horizontal event feed built from the most recent messages.
+ * Each card includes the source, author, a primary entity context, and timing.
+ *
+ * Response: { events: EventFeedItem[] }
+ */
+arcadedbRouter.get("/events", async (_req, res, next) => {
+  try {
+    const eventsRaw = await arcadeDb.query(
+      `SELECT name, scheduledAt, rawTemporal, firstSeenAt
+       FROM Entity
+       WHERE kind = 'Event'
+       ORDER BY scheduledAt DESC LIMIT 12`,
+    );
+    const eventRows = toRows(eventsRaw) as Array<{
+      name: string;
+      scheduledAt?: string;
+      rawTemporal?: string;
+      firstSeenAt?: string;
+    }>;
+
+    if (eventRows.length === 0) {
+      return res.status(200).json({ events: [] });
+    }
+
+    const now = new Date();
+    const events: EventFeedItem[] = [];
+
+    for (const event of eventRows) {
+      const createdAt = event.firstSeenAt;
+      const isRecent = createdAt ? now.getTime() - new Date(createdAt).getTime() < 60 * 60 * 1000 : false;
+      const isUpcoming = event.scheduledAt ? new Date(event.scheduledAt) > now : false;
+      const detail = event.scheduledAt
+        ? `Scheduled ${new Date(event.scheduledAt).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}`
+        : event.rawTemporal
+          ? `When: ${event.rawTemporal}`
+          : "Event";
+
+      events.push({
+        id: event.name,
+        title: event.name,
+        detail,
+        createdAt,
+        scheduledAt: event.scheduledAt,
+        rawTemporal: event.rawTemporal,
+        isUpcoming,
+        isRecent,
+      });
+    }
+
+    events.sort((a, b) => {
+      if (a.isUpcoming && !b.isUpcoming) return -1;
+      if (!a.isUpcoming && b.isUpcoming) return 1;
+      const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return bTime - aTime;
+    });
+
+    res.status(200).json({ events });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
  * GET /api/arcadedb/todos
  *
  * Returns all Todo entities enriched with the Messages that mention them.
@@ -340,4 +417,3 @@ arcadedbRouter.get("/todos", async (_req, res, next) => {
     next(error);
   }
 });
-

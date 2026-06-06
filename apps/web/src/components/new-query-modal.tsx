@@ -1,5 +1,6 @@
 "use client";
 import React, { useState, useRef, useEffect } from "react";
+import { formatTimeInIST } from "@/lib/time";
 import {
   X,
   Zap,
@@ -197,7 +198,7 @@ export default function NewQueryModal({ onClose }: NewQueryModalProps) {
               <p className="text-[13px] text-slate-300 leading-relaxed">{result}</p>
               <div className="flex items-center gap-2 pt-2 border-t border-slate-800/60 mt-3">
                 <span className="text-[9px] font-mono text-slate-600 tracking-wider">
-                  SYNTHESIZED FROM {selectedSources.length} SOURCES · {new Date().toLocaleTimeString()}
+                  SYNTHESIZED FROM {selectedSources.length} SOURCES · {formatTimeInIST()}
                 </span>
               </div>
             </div>

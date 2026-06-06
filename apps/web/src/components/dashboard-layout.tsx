@@ -36,7 +36,7 @@ export default function DashboardLayout({
   const isActive = (href: string) => href === "/" ? pathname === "/" : pathname.startsWith(href);
 
   return (
-    <div className="flex w-full h-screen bg-slate-50 dark:bg-[#07080a] text-slate-800 dark:text-slate-100 font-sans overflow-hidden">
+    <div className="flex w-full h-full bg-slate-50 dark:bg-[#07080a] text-slate-800 dark:text-slate-100 font-sans overflow-hidden">
 
       {/* ══════ SIDEBAR ══════ */}
       <aside className="flex flex-col justify-between w-[220px] bg-white dark:bg-[#090a0f] border-r border-slate-200/60 dark:border-slate-900/60 p-5 select-none shrink-0 h-full overflow-hidden">
